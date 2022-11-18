@@ -1,1 +1,221 @@
-테오
+1. 결측치 처리
+
+  - R 코드 예제
+
+# 1. na 개수
+sum(is.na(data))
+
+# 2. na가 있는지 확인
+complete.cases(data)
+
+# 3. 결측치 처리
+data$col1 = ifelse(is.na(data$col1), mean(data$col1, na.rm=T), data$col1)
+
+library(DMwR)
+# ***꼭 data.frame을 넣어야 한다.
+data = centralImputation(data) # na를 median으로 대체
+data = centralValue(data) # 숫자는 중앙값, facor는 최빈값으로 대체
+ 
+
+2. 이상치 확인
+
+  - R 코드 예제
+
+# 1. 사분위수
+quantile(data, prob = seq(0, 1, 0.25), na.rm = F)
+quantile(data, prob = seq(0, 1, 0.75), na.rm = F)
+
+# boxplot
+boxplot(data)
+
+# IQR
+lowerQ = fivenum(x)[2] # 1분위수
+upperQ = fivenum(x)[4] # 3분위수
+IQR = IQR(data, na.rm = T) # IQR
+
+lowerLimit = lowerQ - 1.5*IQR
+upperLimit = upperQ + 1.5*IQR
+
+lowerOutlierIdx = which(data < lowerLimit)
+upperOutlierIdx = which(data > upperLimit)
+
+data = data[-lowerOutlierIdx,]
+data = data[-upperOutlierIdx,]
+ 
+
+3. 파생 변수 생성
+
+  - R 코드 예제
+
+df = as.data.frame()
+
+# 1. $, [] 활용
+df$col1 = 1:10
+df["col2"] = 1:10
+
+# 2. transform 활용
+transform(df, col3 = col1 + col2)
+
+# 3. within 활용
+df = within(df, {
+	 	 col4 = character(0)
+                 col4[col1 == 1] = "일 O"
+                 col4[col1 != 1] = "일 X"
+                 col4 = factor(col4, level = c("일 O", "일 X"))})
+ 
+
+4. 정규화(Normalization), Scaling
+
+  - R 코드 예제
+
+library(caret) #For using preProcess()
+
+# 1. 표준화 (Standardization)
+preproc1 = preProcess(data, method = c("center", "scale"))
+preproc1 = scale(data, center = T)
+
+
+# 2. 0 ~ 1 정규화 (Normalization)
+preproc2 = preProcess(data, method = "range")
+preproc2 = scale(data, center = min(data), scale = max(data) - min(data))
+ 
+
+5. 데이터 요약
+
+  - R 코드 예제
+
+# 1. aggregate
+aggregate(value ~ id, data, mean) # id별 value의 평균
+aggregate(cbind(value1, value2) ~ id, data, mean) # value1, value2의 평균
+
+# 2. table (도수분포표)
+table(data)
+table(col1, col2)
+
+# 3. subset
+subset(data, conditions)
+ 
+
+6. 더미 변수화 (One-hot Encoding)
+
+  - R 코드 예제
+
+# 1. caret library 활용
+library(caret)
+
+# Factor 변수들에 대한 dummy encoding 수행
+dummies = dummyVars( ~ ., data, levelsOnly = FALSE)
+dummies = dummyVars(y ~ ., data, levelsOnly = FALSE) #dummy화하기 싫은 컬럼은 y자리에 넣으면 됨
+dummies = as.data.frame(predict(dummies, newdata = data))
+str(dummies)
+
+# 2. fastDummies library 활용
+library(fastDummies)
+dummies = dummy_cols(.data = data, selec_columns = c("col1", "col2"), remove_first_dummy = F)
+ 
+
+7. apply 함수들
+
+  - R 코드 예제
+
+# 1. apply
+## - input: matrix / array, output: matrix / array
+apply(array, 1, mean) # 1: 행, 2: 열
+
+# 2. lapply 
+##  - input: list / vector / data.frame, output: list
+lapply(vector, function)
+unlist(lapply(vector, function)) # list > vector 변환
+
+# 3. sapply
+##  - input: list / vector, output: vector / array
+##  - lapply를 wrapping하여 vector로 반환
+sapply(vector, function) 
+
+# 4. vapply
+##  - input : list / vector, output : vector / array
+##  - return type을 명시
+vapply(vector, function, c("type1", "type2", ....)) #type: numeric, logical, ...
+
+# 5. mapply
+##  - input : list / vector, output : vector / array
+##  - apply 함수를 여러 인자에 대하여 여러 번 적용하기 위한 함수
+mapply(sum, list1, list2) # ex., mapply(rep, c(1:4), c(4:1))
+
+# 6. tapply
+##  - input : list / vector / factor, output : vector / array
+##  - 그룹별로 적용하기 위한 함수
+tapply(value, id, mean) # id별 value의 mean을 반환
+tapply(value, id == "asdf", mean) # id에 조건 부여
+ 
+
+8. dplyr, reshape2, data.table
+
+  - R 코드 예제
+
+# 1. dplyr
+library(dplyr)
+
+data %>% filter(col = "asdf")
+data %>% dplyr::select(col1, col2, -col3)
+data %>% group_by(col1) %>% summarise(new_col = mean(col2)) #mean, median, sd, min, max, sum, n (row 개수)
+data %>% mutate(col = ifelse(conditions))
+data %>% arrange(col1) #desc(col1): 내림차순
+left_join(data1, data2, by = "col1") # left, right, outer, inner, ...
+
+# 2. reshape2
+library(reshape2)
+
+melt(data, id, value, na.rm = F) # 데이터를 id, variable, value의 3 컬럼으로 변환
+dcast(data, formula, fun.aggregate = NULL) # df를 반환하는 cast
+
+# 3. data.table (data.frame처럼 취급할 수 있음)
+library(data.table)
+
+data[i, j] #i, j로 내부 변수에 접근할 수 있음
+data[data$col1 == "asdf", ] # subset 추출 가능
+data[, mean(col1), by=col2] # 그룹화 수행 가능
+ 
+
+9. 데이터 분할 (Split), Resampling (K-Fold, Bootstrap)
+
+  - 잘 정리된 링크: topepo.github.io/caret/data-splitting.html
+
+ 
+4 Data Splitting | The caret Package
+
+Documentation for the caret package.
+
+topepo.github.io
+
+  - R 코드 예제
+
+# 1. 일반적 방법
+set.seed(12345) #seed 값을 생성하여 sample할 때마다 동일한 난수 생성
+# + rnorm(10, 0, 1): Norm(0, 1)의 분포로 10개의 난수 생성
+idx = sample(1:nrow(data), size = nrow(data) * 0.7, replace = F)
+train = data[idx,]
+test = data[-idx,]
+
+
+# 2. caret library 활용
+library(caret)
+
+set.seed(3456)
+trainIdx = createDataPartition(data, p = 0.7, list = F, times = 1)
+train_data = data[trainIdx,]
+test_data = data[-trainIdx,]
+
+# 3. Resampling
+library(caret)
+folds = groupKFold(data, k = 10)
+folds = createFolds(data, k = 10)
+
+library(boot)
+## statistics: 구하고 싶은 통계량
+## R: The number of bootstrap replicates
+boot(data, statistics = function, R = 1000)
+
+  - Bootstrap 관련 링크: www.datacamp.com/community/tutorials/bootstrap-r
+
+ 
